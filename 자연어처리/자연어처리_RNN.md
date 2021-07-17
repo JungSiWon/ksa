@@ -1,22 +1,16 @@
-# 프로그래머스 이미지 분석
-###### <strong> 미술작품 이미지 분류(category 7 classes)
+# 자연어처리
+###### <strong> RNN을 이용한 자연어처리
 
 * 언어 : Python
 * 프로그램 : Colab
-* 소스코드 : efficientnet.ipynb
-* 최종모델 : 2021-05-25_15-46-35-03-0.36.h5
-* 사용한 모듈 : tensorflow, keras, matplotlib, datetime, efficientnet
-* 주요 함수 :
+* 소스코드 : 데이터전처리.ipynb, RNN_SMS.ipynb, data_loader.py
+* 데이터 : sms.tsv
+* 사용한 모듈 : torch, torchvision, torchtext, matplotlib, pandas
+* 주요 클래스 :
 
 ```
 
- os.makedirs(path, exist_ok) : 폴더생성  datetime.now().strftime('%Y-%m-%d_%H-%M-%S') : 현재날짜시간출력
- ImageDataGenerator(rotation_range, width_shift_range, height_shift_range, horizontal_flip) : Data Augumentation를 위한 데이터 증강
- flow_from_directory(path, target_size, class_mode, seed, batch_size, subset) : 디렉토리 내 데이터 Load 후 ImageDataGenerator 적용
- EfficientNetB0(include_top, weights, input_shape) : efficientnet 모델 생성  Flatten() : 1차원 벡터화  Dense(units, activation, name) : FC 레이어 추가
- Dropout() : 드랍아웃  Model(Input, Output).compile(loss, optimizer, metrics) : 신경망 모델 인스턴스 생성
- EarlyStopping(monitor, mode, patience, verbose) : 모델조기종료  ModelCheckPoint(path, monitor, save_best_only, mode, verbose) : 베스트 모델 저장
- model.fit_generator(generator, steps_per_epoch, epochs, validation_data, validation_steps, callback) : 학습
+ DataLoader(object)  RNN(nn.module)  ComputeAccr(dloader,imodel)
  
  ```
  
@@ -27,35 +21,71 @@
 
 * 데이터 정보
 
-<img src = "https://user-images.githubusercontent.com/72690336/119535194-b7ce7c80-bdc2-11eb-8187-d270bb76082d.png" width="50%" height="50%">
+<img src = "https://user-images.githubusercontent.com/72690336/126024309-bc7fd091-198a-467e-97fc-c28ba7d51227.png" width="50%" height="50%">
 
--1698장(train 1361장, validation 337장으로 분리)
--label : 0~6 ['dog', 'elephant', 'giraffw', 'guitar', 'horse', 'house', 'person']
+-tsv 파일(tab으로 구분된 text파일)
+-5574 row
+-label : 'ham', 'spam'
+-sms : 가사 최대 256글자로 설정후 slice
 
 * 오늘의 모델 구조
 
-<img src = "https://user-images.githubusercontent.com/72690336/119537719-4e9c3880-bdc5-11eb-9682-dc309266afe5.png" width="50%" height="50%">
+<img src = "https://user-images.githubusercontent.com/72690336/126024418-60e37a32-95cf-4994-b289-c4ab0ce2a11d.png" width="70%" height="70%">
 
-  * Baseline으로 MNesNet 구조를 따른다.
-  * 다른 구조에 비해 적은 수의 파라미터
-  * 현재 이미지 분류 알고리즘 중 가장 좋은 성능을 보이는 모델
+  * Embedding layer à LSTM à Linear(fc) layer à Softmax
+  * 앞 뒤 데이터와 관련성 있는 데이터에 적합한 RNN구조 사용
+  * Embedding layer
+ 
+ <img src = "https://user-images.githubusercontent.com/72690336/126024963-3209836a-81f4-4fbb-95c3-b86ad4c56d47.png" width="40%" height="40%"> <img src = "https://user-images.githubusercontent.com/72690336/126024990-6adc25b5-dc02-4b9f-b141-838ed2fa40b7.png" width="40%" height="40%">
+
+
 
 ----------------------------------------
 
-### CNN - EfficientNet
+### 주요 클래스 및 모듈
 
-* 모델 성능
-  * train : loss: 0.6839 - accuracy: 0.7820
-  * validation : val_loss: 0.3589 - val_accuracy: 0.9139
+* data_loader.py
+  * 오픈소스
+  * 데이터 로드 후 train, valid 셋 분리
+  * 학습시킬 때 batch_size만큼 끊어서 로드 
+  * 조건
+    * 두 개의 필드로 구성된 데이터
+    * TAB으로 구분되어 있는 데이터
 
--epochs의 진행에 따라 loss값을 기준으로 5회이상 향상되지 않으면 모델 조기종료 -> 8회차 종료 -> 3회차 best 모델 선정(2021-05-25_15-46-35-03-0.36.h5)
--validation의 loss와 accuracy가 성능이 더 높다. 과적합 문제는 없는 것으로 보임
-
-* 학습 모델 그래프
-
-<img src = "https://user-images.githubusercontent.com/72690336/119537252-d0d82d00-bdc4-11eb-982e-ddf20e5615e0.png" width="40%" height="40%">  <img src = "https://user-images.githubusercontent.com/72690336/119537335-e4839380-bdc4-11eb-96ae-f80461112d0b.png" width="40%" height="40%">
-
--epochs가 3을 넘어가는 순간부터 validation 그래프 역행 -> 계속 학습 진행 시 overfitting 발생 -> 조기종료
+* RNN
+  * Embedding layer
+  * LSTM 4 층
+  * activation function : Log Softmax
+    * LogSoftmax + NLLLOSS instead of Softmax + CrossEntropy
+ 
+* ComputeAccr
+  * y와 pred 비교를 통해 accuracy 산정
+ 
+ 
+### 분석 절차
+ 1. 데이터 전처리
+   * 클래스 파악
+   * 중복 제거
+   * sms 최대 256 글자 slice
+   * shuffle
+   * train, test 분리
+ 
+ 2. 데이터 로드
+   * 하이퍼파라미터 세팅
+   * DataLoader를 사용하여 train 데이터 train, valid로 나눠서 load
+   * DataLoader를 사용하여 test 데이터 load
+ 
+ 3. 데이터 분석
+   * 모델 선언
+   * loss, optimizer 정의 - nn.NLLLoss, Adam
+   * 학습
+   * 테스트 
+ 
+ 
+### 분석결과
+ * epoch 10회차 학습 모델 성능
+   * Loss: 0.0296
+   * Accuracy: 97.31
 
 
 ---------------------------------------------
@@ -63,8 +93,6 @@
 
 ### 개선할 점
 
-* train 셋의 성능이 너무 낮은 단계에서 EarlyStopping 작용 -> ImageGenerator 옵션 일부 제거(일반화 축소)
-* 흑백으로 변환했을 때 가시적으로 더 구분이 잘 되었다. 실제 분석에 적용 후 모델 비교
-* 이미지 샤프닝 처리를 통해 그림의 특징을 더 강조한 후 분석 실시 -> 모델 향상에 도움이 되는지 비교
-* 다른 알고리즘 사용 후 모델비교
-* cross-validation을 통해 성능을 높일 수 있을까?
+* cuda를 사용하여 data_loader 사용 시 모듈 수정이 필요함
+* Bidirectional을 사용한 모델 성능과 비교
+* 과적합은 없는지 검증
