@@ -3,13 +3,13 @@
 
 * 언어 : Python
 * 프로그램 : Colab
-* 소스코드 : CycleGAN.ipynb
+* 소스코드 : U-NET.ipynb
 * 사용한 모듈 : torch, tqdm, torchvision, matplotlib
 * 주요 함수 및 클래스 :
 
 ```
- 클래스 : ContractingBlock, ResidualBlock, ExpandingBlock, Generator, Discriminator, ImageDataset
- 함수 : get_disc_loss, get_gen_adversarial_loss, get_identity_loss, get_gen_loss, weights_init, show_gensor_images, train
+ 클래스 : ContractingBlock, ExpandingBlock, FeatureMapBlock, UNet, Generator, Discriminator, ImageDataset
+ 함수 : crop, show_gensor_images, train
  ```
  
 
@@ -17,13 +17,13 @@
 
 ## 데이터
 
-* horse2zebra
-  * 말과 얼룩말 이미지
-  * 286 size, 256 size로 crop, RandomHorizontalFlip 이미지를 랜덤으로 수평으로 뒤집음
+* 세포 이미지
+  * 세포 촬영 이미지 volumn, label
+  * 512 size, 373 size로 crop
 
 ----------------------------------------
 
-## CycleGAN
+## UNet
   
 ### CycleGAN의 기본원리
  
@@ -91,135 +91,17 @@
 ### pix2pix의 한계와 극복
 * Paired image엥서만 적용 가능 -> unpaired image-to-image translation
 
-### 코드 설명
-
-* generator block
-   ```python
-      def gen_block(self, in_channel, out_channel, kernel_size=4, padding=1, stride=2, dilation=1, final_layer=False):
-        if not final_layer:
-            return nn.Sequential(
-                nn.ConvTranspose2d(in_channel, out_channel, kernel_size=kernel_size, stride=stride, padding=padding, dilation=1),
-                nn.BatchNorm2d(out_channel),
-                nn.ReLU(inplace=True),
-            )
-        else:
-            return nn.Sequential(
-                nn.ConvTranspose2d(in_channel, out_channel, kernel_size=kernel_size, stride=2, dilation=1, padding=1),
-                nn.Tanh(),
-            )
-     ```
-  * input 차원과 output 차원을 입력받음
-  * ConvTransposed layer와 batch norm, ReLU 함수로 구성
-  * kernel_size=4, padding=1, stride=2, dilation=1
-  * 한 층을 거칠때 마다 2배씩 차원이 커짐(첫번째 층에서 padding=0 사용시 4배 증가)
-     
-* Genrator
-     ```python
-        class Generator(nn.Module):
-          def __init__(self, z_dim=10, im_chan=3, hidden_dim=32):
-              super(Generator, self).__init__()
-              self.z_dim = z_dim
-              # Build the neural network
-              self.gen = nn.Sequential(
-                  self.gen_block(z_dim, hidden_dim*8, padding=0),
-                  self.gen_block(hidden_dim*8, hidden_dim*4),
-                  self.gen_block(hidden_dim*4, hidden_dim*2),
-                  self.gen_block(hidden_dim*2, hidden_dim),
-                  self.gen_block(hidden_dim, im_chan, final_layer=True),
-              )
-     ```
-  * 5개의 generator block
-  * 마지막 블록 거친 후 size = 64x64
-     
-* crit block
-   ```python
-      def crit_block(self, in_, out, kernel_size=4, stride=2, padding=1, final_layer=False):
-        if not final_layer:
-            return nn.Sequential(
-                nn.Conv2d(in_, out, kernel_size=kernel_size, stride=stride, padding=padding),
-                nn.BatchNorm2d(out),
-                nn.LeakyReLU(0.2, inplace=True)
-            )
-        else:
-            return nn.Sequential(
-                nn.Conv2d(in_, out, kernel_size=kernel_size, stride=stride, padding=padding)
-            )
-     ```
-  * input 차원과 output 차원을 입력받음
-  * Convolution Layer와 BatchNorm, LeakyReLU 함수로 구성
-  * kernel_size=4, stride=2, padding=1, 한 층을 거칠때 마다 차원 반으로 감소
-     
-* Critic
-  ```python
-     class Critic(nn.Module):
-       def __init__(self, im_chan=3, hidden_dim=16):
-           super(Critic, self).__init__()
-           self.crit = nn.Sequential(
-               self.crit_block(im_chan, hidden_dim),
-               self.crit_block(hidden_dim, hidden_dim*2),
-               self.crit_block(hidden_dim*2, hidden_dim*4),
-               self.crit_block(hidden_dim*4, hidden_dim*8),
-               self.crit_block(hidden_dim*8, 1, final_layer=True),
-           )
-     ```
-  * 3개의 discriminator block으로 구성
-  
-* Loss
-    ```python
-       def get_gen_loss(crit_fake_pred):
-         gen_loss = -1 * torch.mean(crit_fake_pred)
-         return gen_loss
-
-       def get_crit_loss(crit_fake_pred, crit_real_pred, gp, c_lambda):
-         crit_loss = torch.mean(crit_fake_pred) - torch.mean(crit_real_pred) + c_lambda * gp
-         return crit_loss
-    ```
-  
-* Gradient
-    ```python
-       def get_gradient(crit, real, fake, epsilon):
-         mixed_images = real * epsilon + fake * (1 - epsilon)
-         mixed_scores = crit(mixed_images)
-
-         gradient = torch.autograd.grad(
-             inputs = mixed_images,
-             outputs = mixed_scores,
-
-             grad_outputs = torch.ones_like(mixed_scores),
-             create_graph = True,
-             retain_graph = True,
-         ) [0]
-         return gradient
-  
-       def gradient_penalty(gradient):
-       gradient = gradient.view(len(gradient), -1)
-       gradient_norm = gradient.norm(2, dim=1)
-
-       penalty = torch.mean((gradient_norm -1)**2)
-       return penalty
-    ```
-     
-* 이후 초기화, 데이터로딩, Optimizer 생성, 모델 Training 순으로 진행
-      
-      
-### 샘플 이미지
+### UNet train 결과
 * 원본 이미지(real)
-      
-<p align="center"><img src = "https://user-images.githubusercontent.com/72690336/123521371-2d46a900-d6f1-11eb-95b2-6cb5a42df109.png" width="30%" height="30%">
+
+<p align="center"><img src = "https://user-images.githubusercontent.com/72690336/126861061-0ba6e007-0b36-4a89-9d0d-ca010c59e7bc.png" width="40%" height="40%">
 
 * 생성이미지(fake)
 
-<p align="center"><img src = "https://user-images.githubusercontent.com/72690336/123521553-5451aa80-d6f2-11eb-8da5-edbdd09af2c7.png" width="30%" height="30%">
- 
- -학습이 제대로 이루어지지 않음.
- 
-* loss 그래프
- 
- <p align="center"><img src = "https://user-images.githubusercontent.com/72690336/123521613-bd392280-d6f2-11eb-9f3c-fa06cf694d3b.png" width="30%" height="30%">
+<p align="center"><img src = "https://user-images.githubusercontent.com/72690336/126861078-f49c1115-8b3d-490b-8980-247c53618590.png" width="40%" height="40%">
 
  
-* 모델 성능(step 1900)
-  * Generator loss: 120.19047988891602, Critic loss: -4.923906676292419
-    * Loss 값이 -가 나오기도 함
-    * 아직 학습이 제대로 이루어지지 않음. 더 많은 step 학습 후 결과 비교 필요
-    * 원본이미지가 너무 어둡고 흐릿함 -> 더 높은 size와 이미지처리후 결과 더 좋아질 것으로 예상
+* 모델 성능(step 1300, epoch 162)
+  * U-Net loss : 0.0617
+    * 매우 작은 loss값에 육안으로 식별 불가할 정도의 비슷한 이미지 생성
+    * Genrator와 Discriminator가 따로 없다.
