@@ -1,15 +1,15 @@
-# WGAN
-###### <strong> WGAN의 개념과 코딩
+# pix2pix
+###### <strong> pix2pix의 개념
 
 * 언어 : Python
 * 프로그램 : Colab
-* 소스코드 : DCGAN.ipynb
-* 사용한 모듈 : matplotlib, torch, torchvison, tqdm
-* 주요 함수 :
+* 소스코드 : CycleGAN.ipynb
+* 사용한 모듈 : torch, tqdm, torchvision, matplotlib
+* 주요 함수 및 클래스 :
 
 ```
- gen_block, dis_block, class Generator, class Critic, get_gen_loss, get_crit_loss, show_tensor_images
- get_gradient, gradient_penalty
+ 클래스 : ContractingBlock, ResidualBlock, ExpandingBlock, Generator, Discriminator, ImageDataset
+ 함수 : get_disc_loss, get_gen_adversarial_loss, get_identity_loss, get_gen_loss, weights_init, show_gensor_images, train
  ```
  
 
@@ -17,81 +17,79 @@
 
 ## 데이터
 
-* CelebA
-  * 얼굴 이미지
-  * 64x64, 얼굴로 이미지 crop 후 사용
+* horse2zebra
+  * 말과 얼룩말 이미지
+  * 286 size, 256 size로 crop, RandomHorizontalFlip 이미지를 랜덤으로 수평으로 뒤집음
 
 ----------------------------------------
 
-## WGAN
- 
-### WGAN의 기본원리
- 
- * 정보이론의 개념
-   * m : 정보를 포함하는 message
-   * p(m) : m의 확률
-   * I(m) : m에 대한 self-information
- 
-<p align="center"><img src = "https://user-images.githubusercontent.com/72690336/123518921-2b75e900-d6e3-11eb-8e1e-ad50bdc45dfe.png" width="40%" height="40%">
-
- * Entropy의 개념
-   * 메시지 m의 집합 M에 대한 정보량의 평균값 -> <p align="center"><img src = "https://user-images.githubusercontent.com/72690336/123519077-19487a80-d6e4-11eb-89ec-b5fc389b8c04.png" width="40%" height="40%">
- 
- * Cross Entropy
-   * 두 확률 분포 p와 q에 대해서 q를 이용해서 p를 설명할 때 필요한 정보량
-     * p=q -> 최소의 정보량
-     * p!= -> 최대의 정보량
- 
-<p align="center"><img src = "https://user-images.githubusercontent.com/72690336/123519166-9c69d080-d6e4-11eb-940e-fb800041d8d5.png">
- 
-### WGAN의 개념
- 
- * Wasserstein distance
-   * Cross entropy를 이용한 distribution의 거리 측정의 문제점
-     * gradient가 0에 가까워질수록 gradient 소실 문제 발생
-   * 해결책
-     * 두 분포의 차이를 두 분포 사이의 거리로 정의
-     * 하나의 분포를 다른 분포로 옮기는 작업을 earth move로 간주 -> Earth Mover's Distance로 정의
-   * Discriminator -> Critic
-     * discriminator return 0(Fake) or 1(real)
-     * critic returns the quality of the result in (0,1)
- 
- * WassersteinGAN의 Loss 함수
-   * Real data의 분포와 fake data의 분포의 차이  
- ![image](https://user-images.githubusercontent.com/72690336/123519740-1a7ba680-d6e8-11eb-8eb3-2a58fcbc7878.png)
-   * Gradient exploding
- 
- <p align="center"><img src = "https://user-images.githubusercontent.com/72690336/123519804-66c6e680-d6e8-11eb-9fbf-f6d4b01da3e2.png" width="60%" height="60%">
+## CycleGAN
   
- * Gradient penalty
-   * Lipschitz 연속 함수
-     * 두 점 사이의 거리가 일정한 비율(K) 이상으로 증가하지 않는 함수
-   * 1-Lipschitz 연속 함수(1-L 연속)
-     * K = 1
-     * Gradient의 크기의 절대값이 1보다 작거나 같은 함수
-     * Gradient 소실을 피하기 위한 조건으로 사용 -> critic의 학습 능력 제한(weight clipping)
-   * critic의 gradient에 대한 regularization을 이용하여 1-L 연속을 유지
-     * G(z)와 x를 보간해서 x' 생성 -> G(z)의 품질을 높여서 critic의 학습 속도 조절
+### CycleGAN의 기본원리
  
-### WGAN의 구조
- * Generator
-   * gen block
-     * parameter : input_channels, ouput_channels, kernel, final_layer
-     * 구성요소 : transposed convolution + batch_norm + ReLU
-     * final_layer : transposed convolution + tanh
-     * H_out = (H_in - 1) * stride - 2 * padding + dilation * (kernel_size - 1) + outpadding + 1
-   * gen block을 사용하여 초기 1x1 size 벡터를 이미지의 size만큼 맞춰줌
+ * pix2pix의 개념
+   * 한 영상으로부터 새로운 스타일의 영상을 생성하는 기법 ex) 이미지 복원, 흑백to컬러화, 항공사진to지도 등에 사용
+
+ * pix2pix의 배경
+   * Conditional GAN을 발전시킴
+   * Conditional GAN의 Generator
+ 
+<p align="center"><img src = "https://user-images.githubusercontent.com/72690336/126859105-de619f7c-eb05-43cd-97fd-a9496a8cb812.png" width="60%" height="60%">
+ 
+ *
+   * pix2pix의 generator와 discriminator
+ 
+<p align="center"><img src = "https://user-images.githubusercontent.com/72690336/126859146-7b84c1b0-c1d4-4bc5-82b0-ec53462efe6d.png" width="50%" height="50%"><img src = "https://user-images.githubusercontent.com/72690336/126859156-0a48675c-25e6-4314-b936-b713237e8050.png" width="50%" height="50%">
+
+### pix2pix의 구조
+* 전체 구조
+  * G는 스케치 (x)에서 컬러 영상 (G(x))를 생성
+  * D는 합성된 컬러 영상 G(x), 또는 실제 컬러영상 (y)와 x를 비교해서 fack/real 판별
+
+### pix2pix의 구성요소
+ 
+#### Generator
+* U-net구조를 이용한 generator
+  * 각 encoder block을 거칠수록 image size가 반으로 감소(보통 256 size의 이미지를 8개의 encoder block을 사용해 1차원으로 축소)
+  * 각 encoder block는 convolution - batch norm - Leaky ReLU로 구성
+  * 각 decoder block을 거칠수록 image size가 2배로 증가(1차원 크기의 벡터를 8개의 decoder block으로 원래 이미지 size인 256d으로 복구)
+  * 각 decoder block는 transposed convolution - batch norm - ReLU로 구성
+ 
+ <p align="center"><img src = "https://user-images.githubusercontent.com/72690336/126859470-4154bd5a-10f9-4c4b-8cca-11174f0856cc.png" width="70%" height="70%">
   
- * Critic
-   * crit block
-     * parameter : input_channels, output_channels, kernel, stride, final_layer
-     * 구성요소 : convolution + batch_norm + LeakyReLU(0.2)
-     * final_layer : convolution
-     * H_out = └(Hin + 2* padding - dilation * (kernel_size-1)-1)/stride +1┘
-     * 마지막 channel의 수 = 1
+* Encoder-decoder 구조
+  * deconv-net이라고도 불림
+  * Convolution VS Transposed convolution
+  
+  <p align="center"><img src = "https://user-images.githubusercontent.com/72690336/126859561-d63db898-d785-40ec-a30f-1da76433c28d.png" width="60%" height="60%">
+   
+* Skip connection
+  * Forward pass: encoder의 정보를 decode에 전달
+  * Backward pass: encoder의 gradient flow를 개선
 
----------------------------------------------
+#### Discriminator
+* PatchGAN 구조를 사용
+  * 전통적 GAN엥서는 discriminator가 전체 영상에 대해서 Real/Fake를 판정
+  * PatchGAN에서는 영상을 patch로 분할하여 각 영역의 Real/Fake를 판정
+ 
+   
+#### loss 함수 
+* 전통적인 CGAN loss(adversarial loss, GAN loss) + pixex distance loss
+  * pix2pix의 loss 함수
+   
+<p align="center"><img src = "https://user-images.githubusercontent.com/72690336/126860037-df7c3d3a-e4e6-40ab-b928-f6a85a8a5cce.png" width="40%" height="40%">
+ 
+ * Adversarial loss(L<sub>cGAN</sub>(G,D))
+ 
+<p align="center"><img src = "https://user-images.githubusercontent.com/72690336/126860166-af6e40c4-e368-4c0f-ab17-b058c8a3efe3.png" width="50%" height="50%">
 
+ * Pixel distance loss(L<sub>L1</sub>(G,D))
+   * 생성된 영상 (G(x,z))와 groundtruth 영상 (y)와의 픽셀간의 차이
+ 
+<p align="center"><img src = "https://user-images.githubusercontent.com/72690336/126860277-b2168785-62a8-4644-8425-a7ff1dcc8600.png" width="40%" height="40%">
+ 
+### pix2pix의 한계와 극복
+* Paired image엥서만 적용 가능 -> unpaired image-to-image translation
 
 ### 코드 설명
 
